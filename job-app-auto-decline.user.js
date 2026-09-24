@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Job App Auto-Decline (EEO / Self-ID Questions)
 // @namespace    skibkitty-job-tools
-// @version      1.1
-// @description  Press Ctrl+Shift+D (or click the floating button) to auto-select "decline to answer" style options on voluntary self-identification / EEO questions (gender, race, ethnicity, veteran status, disability). Manual trigger only -- nothing runs automatically on page load.
+// @version      1.2
+// @description  Press Ctrl+Shift+D (or click the floating button) to auto-select "decline to answer" style options on voluntary self-identification / EEO questions (gender, race, ethnicity, veteran status, disability). Manual trigger only -- nothing runs automatically on page load. When no questions are detected a "Save page HTML (debug)" button appears that downloads a copy of the page plus a debug summary for fixing missed questions.
 // @author       you
 // @homepageURL  https://github.com/skibkitty/tampermonkey-scripts
 // @supportURL   https://github.com/skibkitty/tampermonkey-scripts/issues
@@ -31,15 +31,21 @@
  WHAT THIS DOES:
  - Does nothing until you press Ctrl+Shift+D or click the small floating
    button it adds in the bottom-right corner of the page.
- - When triggered, it scans the page for question groups (radio button
-   groups and <select> dropdowns) whose nearby label/legend text looks
-   like a demographic/EEO question (gender, race, ethnicity, veteran,
-   disability, orientation, etc.), and within those groups only, selects
-   the option whose text matches a "decline to answer" style phrase.
+ - When triggered, it scans the page for question controls (radio groups,
+   native <select> dropdowns, and Workday-style custom dropdown buttons
+   that open a listbox menu) whose nearby label/legend text looks like a
+   demographic/EEO question (gender, race, ethnicity, veteran, disability,
+   orientation, etc.), and within those only, selects the option whose text
+   matches a "decline to answer" style phrase. This covers common phrasing
+   including "Undeclared", "Not Declared", "I choose not to disclose", and
+   "I do not wish to self-identify".
  - It briefly outlines whatever it selects in yellow so you can see what
    happened, and shows a small summary count in the corner.
  - It does NOT touch any field outside those matched demographic groups --
    salary questions, work authorization, etc. are left alone.
+ - If nothing is found, a "Save page HTML (debug)" button appears; clicking
+   it downloads the page plus a summary of every demographic-looking control
+   that was skipped, so a missed question can be diagnosed and fixed.
 
  LIMITATIONS:
  - This is text-matching heuristics, not a certified integration with any
@@ -52,22 +58,27 @@
     'use strict';
 
     const DECLINE_PATTERNS = [
+        'undeclared',
+        'not declared',
         'decline to self identify',
         'decline to answer',
         'decline to specify',
         'decline to state',
+        'decline to disclose',
         'i do not wish to answer',
         'i do not wish to self',
         'do not wish to answer',
         'do not wish to disclose',
+        'wish not to disclose',
+        'wish not to answer',
         'prefer not to answer',
         'prefer not to say',
         'prefer not to disclose',
         'choose not to disclose',
         'choose not to answer',
+        'choose not to state',
         'not specified',
         'not disclosed',
-        'not declared',
         'i don\'t wish to answer',
     ];
 
@@ -258,14 +269,145 @@
         return count;
     }
 
+    // --- Debug snapshot saving -------------------------------------------------
+    // When the run finds nothing worth declining, a "Save page HTML (debug)"
+    // button appears. It downloads the live page DOM plus a summary comment of
+    // the demographic-looking controls that were found but not auto-declined,
+    // so a missed question can be inspected and the script fixed.
+    let saveButton = null;
+
+    function removeSaveButton() {
+        if (saveButton && saveButton.parentElement) {
+            saveButton.remove();
+        }
+        saveButton = null;
+    }
+
+    function makeTimestamp() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}-${p(d.getSeconds())}`;
+    }
+
+    function controlLabelText(control) {
+        if (control.getAttribute && control.getAttribute('aria-label')) {
+            return control.getAttribute('aria-label');
+        }
+        if (control.id) {
+            const lbl = document.querySelector(`label[for="${CSS.escape(control.id)}"]`);
+            if (lbl) return lbl.textContent;
+        }
+        return '';
+    }
+
+    function buildDebugComment() {
+        const parts = [];
+        const push = s => parts.push(s);
+        push('<!-- ===== AUTODECLINE DEBUG SNAPSHOT =====');
+        push('Page: ' + location.href);
+        push('Saved: ' + new Date().toISOString());
+        push('Reason: No matching demographic questions were auto-declined on this page.');
+        push('');
+        push('Every control below matched the demographic keywords in its label');
+        push('but had no option text matching the decline list. If detection failed,');
+        push('the offending question is almost always one of these. Paste this file');
+        push('to opencode to get the detection fixed.');
+        push('');
+
+        let idx = 0;
+
+        // Workday-style custom dropdown buttons
+        Array.from(document.querySelectorAll('button[aria-haspopup="listbox"]'))
+            .filter(b => isInDemographicContext(b))
+            .forEach(cb => {
+                idx++;
+                const label = controlLabelText(cb) || cb.textContent || '';
+                push(`[${idx}] combobox name="${cb.getAttribute('name') || ''}" label="${label}" current="${(cb.textContent || '').trim()}"`);
+            });
+
+        // Native <select> dropdowns
+        Array.from(document.querySelectorAll('select'))
+            .filter(s => isInDemographicContext(s))
+            .forEach(sel => {
+                idx++;
+                const label = controlLabelText(sel);
+                const options = Array.from(sel.options).slice(0, 20).map(o => o.textContent.trim()).join(' | ');
+                push(`[${idx}] select name="${sel.getAttribute('name') || ''}" label="${label}" options="${options}"`);
+            });
+
+        // Radio button groups
+        const radios = Array.from(document.querySelectorAll('input[type="radio"]'));
+        const groups = {};
+        radios.forEach(r => {
+            const key = r.name || r.getAttribute('data-group') || 'ungrouped';
+            (groups[key] = groups[key] || []).push(r);
+        });
+        Object.entries(groups).forEach(([key, group]) => {
+            if (!group.some(r => isInDemographicContext(r))) return;
+            idx++;
+            const optionLabels = group.slice(0, 20).map(r => {
+                const label = controlLabelText(r);
+                if (label) return label;
+                const sibling = r.nextElementSibling;
+                return sibling && sibling.textContent ? sibling.textContent : '(no label)';
+            });
+            push(`[${idx}] radio name="${key}" options=${JSON.stringify(optionLabels)}`);
+        });
+
+        push('');
+        push('If none of the above look like demographic questions, then the');
+        push('demographic keywords simply did not match this form wording at all.');
+        push('===== END AUTODECLINE DEBUG SNAPSHOT ===== -->');
+
+        return parts.join('\n');
+    }
+
+    function snapshotFilename() {
+        const host = (location.hostname || 'unknown-host').replace(/[^a-z0-9.-]/gi, '_');
+        return `autodecline-report__${host}__${makeTimestamp()}.html`;
+    }
+
+    function saveHtmlSnapshot() {
+        const html = '<!DOCTYPE html>\n' + buildDebugComment() + '\n' + document.documentElement.outerHTML;
+        const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = snapshotFilename();
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+        removeSaveButton();
+    }
+
+    function showSaveButton() {
+        removeSaveButton();
+        saveButton = document.createElement('button');
+        saveButton.textContent = 'Save page HTML (debug)';
+        saveButton.title = 'Download this page plus a debug summary so opencode can fix why the demo questions were not detected.';
+        Object.assign(saveButton.style, {
+            position: 'fixed', bottom: '110px', right: '20px', zIndex: 999999,
+            padding: '8px 12px', background: '#5b3b00', color: '#fff', border: 'none',
+            borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'sans-serif',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        });
+        saveButton.addEventListener('click', saveHtmlSnapshot);
+        document.body.appendChild(saveButton);
+        setTimeout(removeSaveButton, 30000);
+    }
+
     async function runAutoDecline() {
+        removeSaveButton();
         const radioCount = handleRadioGroups();
         const selectCount = handleSelects();
         const workdayCount = await handleWorkdayListboxes();
         const total = radioCount + selectCount + workdayCount;
-        showToast(total > 0
-            ? `Auto-declined ${total} demographic question(s). Double-check before submitting.`
-            : 'No matching demographic questions found on this page.');
+        if (total === 0) {
+            showToast('No matching demographic questions found on this page.');
+            showSaveButton();
+        } else {
+            showToast(`Auto-declined ${total} demographic question(s). Double-check before submitting.`);
+        }
     }
 
     function addFloatingButton() {

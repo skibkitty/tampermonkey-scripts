@@ -6,7 +6,9 @@ Hosted Tampermonkey (userscript) scripts for personal use. Scripts live flat at 
 
 ### Job App Auto-Decline (EEO / Self-ID Questions)
 
-Auto-selects "decline to answer"-style options on voluntary self-identification / EEO questions during job applications (gender, race, ethnicity, veteran status, disability). Manual trigger only: press **Ctrl+Shift+D** or click the floating "Decline demo Qs" button.
+Auto-selects "decline to answer"-style options on voluntary self-identification / EEO questions during job applications (gender, race, ethnicity, veteran status, disability). Manual trigger only: press **Ctrl+Shift+D** or click the floating "Decline demo Qs" button. Handles native radio/select groups and Workday-style custom dropdowns.
+
+If nothing is detected, a **"Save page HTML (debug)"** button appears (bottom-right, ~30s). Clicking it downloads a snapshot — `autodecline-report__<site>__<date>.html` — with a summary of every demographic-looking control that was skipped baked into the top of the file, so a missed question can be diagnosed and the script fixed.
 
 - **Install:** https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/job-app-auto-decline.user.js
   - Open that link in your browser while Tampermonkey is installed, then click **Install** on the Tampermonkey confirmation page.
