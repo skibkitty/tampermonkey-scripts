@@ -22,6 +22,7 @@ Tampermonkey periodically (or via the user clicking **Check for updates**) fetch
 - **ALWAYS bump `@version`** (e.g. `1.0` → `1.1`) for every commit that changes a script. If `@version` is not incremented, Tampermonkey reports "up to date" and the user's script never updates. This is the #1 mistake.
 - **NEVER change `@name`**. If it changes, Tampermonkey treats it as a new script and installs a duplicate alongside the old one.
 - **NEVER edit `@updateURL`, `@downloadURL`, `@homepageURL`, or `@supportURL`** unless the repo owner or repo name changes.
+- ATS markup varies a lot: Workday renders every dropdown as a custom `button[aria-haspopup="listbox"]` (no native `<select>`/radio) with options rendered on demand as `ul[role="listbox"] > li[role="option"]` — the script must click the field, wait a moment, then click the option. Keep the ATS-specific handlers (`handleWorkdayListboxes` etc.) in sync when you adjust matching logic.
 - Keep the repo and every `@match` grant list accurate for the script's behavior. `@grant none` unless the script genuinely needs a `GM_*` API.
 - Do not add unrelated scripts or files into an existing script's file.
 

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Job App Auto-Decline (EEO / Self-ID Questions)
 // @namespace    skibkitty-job-tools
-// @version      1.0
+// @version      1.1
 // @description  Press Ctrl+Shift+D (or click the floating button) to auto-select "decline to answer" style options on voluntary self-identification / EEO questions (gender, race, ethnicity, veteran status, disability). Manual trigger only -- nothing runs automatically on page load.
 // @author       you
 // @homepageURL  https://github.com/skibkitty/tampermonkey-scripts
@@ -67,6 +67,7 @@
         'choose not to answer',
         'not specified',
         'not disclosed',
+        'not declared',
         'i don\'t wish to answer',
     ];
 
@@ -201,10 +202,67 @@
         setTimeout(() => toast.remove(), 4000);
     }
 
-    function runAutoDecline() {
+    function waitFor(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function simulateRealClick(el) {
+        const opts = { bubbles: true, cancelable: true, view: window };
+        el.dispatchEvent(new MouseEvent('mousedown', opts));
+        el.dispatchEvent(new MouseEvent('mouseup', opts));
+        el.dispatchEvent(new MouseEvent('click', opts));
+    }
+
+    // ATS-specific: Workday has no native <select> or radio groups -- every
+    // dropdown is a hidden button (aria-haspopup="listbox") whose options only
+    // render on demand as <ul role="listbox"> > <li role="option">. So we open
+    // the field, wait for its options, and click the matching one.
+    function findDeclineOptionInOpenLists() {
+        const listboxes = document.querySelectorAll('ul[role="listbox"]');
+        for (const ul of listboxes) {
+            const options = Array.from(ul.querySelectorAll('li[role="option"]'));
+            for (const opt of options) {
+                if (textMatchesAny(opt.textContent, DECLINE_PATTERNS)) {
+                    return opt;
+                }
+            }
+        }
+        return null;
+    }
+
+    async function handleWorkdayListboxes() {
+        let count = 0;
+        const buttons = Array.from(document.querySelectorAll('button[aria-haspopup="listbox"]'));
+        for (const btn of buttons) {
+            if (!isInDemographicContext(btn)) continue;
+            if (textMatchesAny(btn.textContent, DECLINE_PATTERNS)) continue; // already declined
+
+            const openedByUs = btn.getAttribute('aria-expanded') !== 'true';
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+            let option = null;
+            for (let i = 0; i < 15 && !option; i++) {
+                option = findDeclineOptionInOpenLists();
+                if (!option) await waitFor(100);
+            }
+
+            if (option) {
+                simulateRealClick(option);
+                count++;
+                await waitFor(200);
+            } else if (openedByUs) {
+                btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+                await waitFor(100);
+            }
+        }
+        return count;
+    }
+
+    async function runAutoDecline() {
         const radioCount = handleRadioGroups();
         const selectCount = handleSelects();
-        const total = radioCount + selectCount;
+        const workdayCount = await handleWorkdayListboxes();
+        const total = radioCount + selectCount + workdayCount;
         showToast(total > 0
             ? `Auto-declined ${total} demographic question(s). Double-check before submitting.`
             : 'No matching demographic questions found on this page.');
