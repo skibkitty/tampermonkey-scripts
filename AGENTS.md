@@ -11,8 +11,8 @@ A public GitHub repo hosting Tampermonkey userscripts so they can be updated fro
 Each script's metadata block contains:
 
 ```
-// @updateURL    https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/<name>.user.js
-// @downloadURL  https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/<name>.user.js
+// @updateURL    https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/<name>.user.js
+// @downloadURL  https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/<name>.user.js
 ```
 
 Tampermonkey periodically (or via the user clicking **Check for updates**) fetches `@updateURL`, compares the fetched metadata against the installed script, and replaces it when the fetched `@version` is newer.
@@ -37,10 +37,10 @@ Tampermonkey periodically (or via the user clicking **Check for updates**) fetch
 // @version      1.0
 // @description  <what it does>
 // @author       you
-// @homepageURL  https://github.com/67Midas/tampermonkey-scripts
-// @supportURL   https://github.com/67Midas/tampermonkey-scripts/issues
-// @updateURL    https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/<name>.user.js
-// @downloadURL  https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/<name>.user.js
+// @homepageURL  https://github.com/skibkitty/tampermonkey-scripts
+// @supportURL   https://github.com/skibkitty/tampermonkey-scripts/issues
+// @updateURL    https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/<name>.user.js
+// @downloadURL  https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/<name>.user.js
 // @match        https://*.<expected-domain>/*
 // @grant        none
 // ==/UserScript==
@@ -51,5 +51,5 @@ Tampermonkey periodically (or via the user clicking **Check for updates**) fetch
 
 ## After any push
 
-- Verify the file is live: fetch `https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/<name>.user.js` and confirm it returns the new content with an incremented `@version` in the metadata.
+- Verify the file is live: fetch `https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/<name>.user.js` and confirm it returns the new content with an incremented `@version` in the metadata.
 - Note to the user: raw GitHub URLs are cached, so updates may take a minute or two to appear; the user triggers the check via the Tampermonkey menu → **Check for updates**.

@@ -4,10 +4,10 @@
 // @version      1.0
 // @description  Press Ctrl+Shift+D (or click the floating button) to auto-select "decline to answer" style options on voluntary self-identification / EEO questions (gender, race, ethnicity, veteran status, disability). Manual trigger only -- nothing runs automatically on page load.
 // @author       you
-// @homepageURL  https://github.com/67Midas/tampermonkey-scripts
-// @supportURL   https://github.com/67Midas/tampermonkey-scripts/issues
-// @updateURL    https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/job-app-auto-decline.user.js
-// @downloadURL  https://raw.githubusercontent.com/67Midas/tampermonkey-scripts/main/job-app-auto-decline.user.js
+// @homepageURL  https://github.com/skibkitty/tampermonkey-scripts
+// @supportURL   https://github.com/skibkitty/tampermonkey-scripts/issues
+// @updateURL    https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/job-app-auto-decline.user.js
+// @downloadURL  https://raw.githubusercontent.com/skibkitty/tampermonkey-scripts/main/job-app-auto-decline.user.js
 // @match        https://*.greenhouse.io/*
 // @match        https://boards.greenhouse.io/*
 // @match        https://job-boards.greenhouse.io/*
